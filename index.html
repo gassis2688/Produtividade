@@ -303,6 +303,20 @@
         <small>Limite máximo permitido</small>
       </div>
     </div>
+
+    <div class="section-label">👥 Headcount da Equipe</div>
+    <div class="form-grid">
+      <div class="field">
+        <label>Operadores Escala 6×1</label>
+        <input type="number" id="rab-hc61" placeholder="Ex: 15" min="0" oninput="rabCalcMeta()">
+        <small>Cap: 5,5 casos/op/dia</small>
+      </div>
+      <div class="field">
+        <label>Operadores Escala 5×2</label>
+        <input type="number" id="rab-hc52" placeholder="Ex: 10" min="0" oninput="rabCalcMeta()">
+        <small>Cap: 6,6 casos/op/dia</small>
+      </div>
+    </div>
     <div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:16px;">
       <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(0,229,160,0.05);border:1px solid rgba(0,229,160,0.2);border-radius:10px;">
         <span style="font-size:11px;font-family:'Space Mono',monospace;color:var(--accent);">Excluir feriados nacionais?</span>
@@ -342,6 +356,11 @@
           <div class="kpi-val" style="color:var(--accent2)" id="rab-show-media">—</div>
           <div class="kpi-sub">ao longo do mês</div>
         </div>
+        <div class="kpi-card" id="rab-show-cap-card" style="display:none;">
+          <div class="kpi-label">⚡ Cap. Casos Tratados/Dia</div>
+          <div class="kpi-val" style="color:var(--accent3)" id="rab-show-cap">—</div>
+          <div class="kpi-sub" id="rab-show-cap-sub">capacidade de produção da equipe</div>
+        </div>
       </div>
     </div>
   </div>
@@ -353,10 +372,39 @@
     <div id="rab-tabela-dias" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;max-height:420px;overflow-y:auto;padding-right:4px;"></div>
   </div>
 
+  <!-- BLOCO 2b: ENTRADA RÁPIDA -->
+  <div class="card" style="border-color:rgba(245,166,35,0.25);background:rgba(245,166,35,0.02);">
+    <div class="card-title"><span class="dot" style="background:var(--accent3)"></span>Entrada Rápida — Sem lançamento dia a dia</div>
+    <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:16px;">
+      Use esta opção se não preencheu o lançamento diário.<br>
+      O sistema usará o forecast de tratados e a meta para calcular a projeção.
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label>% Reabertura Atual (real)</label>
+        <input type="number" id="rab-pct-rapido" placeholder="Ex: 3.80" min="0" max="100" step="0.01" oninput="rabEntradaRapida()">
+        <small>% realizado até hoje</small>
+      </div>
+      <div class="field">
+        <label>Total Tratados Atual</label>
+        <input type="number" id="rab-trat-rapido" placeholder="Ex: 5400" min="0" oninput="rabEntradaRapida()">
+        <small>Casos tratados até hoje</small>
+      </div>
+    </div>
+    <div id="rab-rapido-preview" style="display:none;margin-top:4px;padding:12px 16px;background:rgba(245,166,35,0.07);border:1px solid rgba(245,166,35,0.2);border-radius:10px;font-family:'Space Mono',monospace;font-size:11px;color:var(--accent3);display:none;flex-wrap:wrap;gap:16px;">
+      <span>Reaberturas reais: <strong id="rab-rap-vol">—</strong></span>
+      <span>Saldo restante: <strong id="rab-rap-saldo">—</strong></span>
+      <span>Média máx./dia: <strong id="rab-rap-media">—</strong></span>
+    </div>
+  </div>
+
   <!-- BLOCO 3: ACOMPANHAMENTO + TENDÊNCIA -->
   <div class="card">
-    <div class="card-title"><span class="dot" style="background:var(--accent3)"></span>Acompanhamento e Projeção</div>
-    <button class="btn btn-green" onclick="rabCalcProjecao()" style="background:var(--accent);color:#000;margin-bottom:16px;">Calcular Projeção</button>
+    <div class="card-title"><span class="dot" style="background:var(--accent)"></span>Acompanhamento e Projeção</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+      <button class="btn btn-green" onclick="rabCalcProjecao(false)" style="background:var(--accent);color:#000;">📅 Calcular com Lançamento Diário</button>
+      <button class="btn" onclick="rabCalcProjecao(true)" style="background:var(--accent3);color:#000;">⚡ Calcular com Entrada Rápida</button>
+    </div>
     <div id="rab-result-proj"></div>
   </div>
 
@@ -369,6 +417,8 @@
 <script>
 const CAP_61 = 5.5, CAP_52 = 6.6, TURNO_MIN = 480;
 const hoje = new Date();
+// D-1: ontem é o último dia com dados fechados
+const d1 = new Date(hoje); d1.setDate(d1.getDate()-1);
 
 function fmt(n,dec=2){ if(isNaN(n))return'—'; return n.toLocaleString('pt-BR',{minimumFractionDigits:dec,maximumFractionDigits:dec}); }
 function fmtInt(n){ return Math.round(n).toLocaleString('pt-BR'); }
@@ -456,10 +506,11 @@ function updateMesInfo(){
 
   let trab, rest;
   if(ano===hoje.getFullYear()&&mi===hoje.getMonth()){
-    const trabSemDom = diasTrabalhadosAte(ano,mi,hoje.getDate());
-    // Feriados até hoje
-    const feriadosAteHoje = feriadosUteis.filter(d => d <= hoje.getDate());
-    trab = trabalhaFeriado ? trabSemDom : trabSemDom - feriadosAteHoje.length;
+    // D-1: dados do dia atual ainda não fecharam
+    const diaRef = d1.getMonth()===mi ? d1.getDate() : 0;
+    const trabSemDom = diaRef>0 ? diasTrabalhadosAte(ano,mi,diaRef) : 0;
+    const feriadosAteD1 = feriadosUteis.filter(d => d <= diaRef);
+    trab = trabalhaFeriado ? trabSemDom : trabSemDom - feriadosAteD1.length;
     rest = uteis - trab;
   } else if(ano<hoje.getFullYear()||(ano===hoje.getFullYear()&&mi<hoje.getMonth())){
     trab=uteis; rest=0;
@@ -683,9 +734,11 @@ function calcProdMes(){
 
   let diasTrab;
   if(ano===hoje.getFullYear()&&mi===hoje.getMonth()){
-    const trabSemDom = diasTrabalhadosAte(ano,mi,hoje.getDate());
-    const feriadosAteHoje = feriadosUteis.filter(d=>d<=hoje.getDate());
-    diasTrab = trabalhaFeriado ? trabSemDom : trabSemDom - feriadosAteHoje.length;
+    // D-1: considera até ontem (dados do dia atual ainda não fecharam)
+    const diaRef = d1.getMonth()===mi ? d1.getDate() : 0;
+    const trabSemDom = diaRef>0 ? diasTrabalhadosAte(ano,mi,diaRef) : 0;
+    const feriadosAteD1 = feriadosUteis.filter(d=>d<=diaRef);
+    diasTrab = trabalhaFeriado ? trabSemDom : trabSemDom - feriadosAteD1.length;
   } else if(ano<hoje.getFullYear()||(ano===hoje.getFullYear()&&mi<hoje.getMonth())){
     diasTrab=diasUteis;
   } else { diasTrab=0; }
@@ -706,6 +759,13 @@ function calcProdMes(){
   const necDia52=necDia*(hc52*CAP_52/capRef);
   const metaOpDia61=hc61>0?necDia61/hc61:null;
   const metaOpDia52=hc52>0?necDia52/hc52:null;
+
+  // Desvio de produtividade (D-1): forecast vs realizado
+  const forecastDiaMes   = diasUteis>0 ? meta/diasUteis : 0;
+  const forecastAteD1    = forecastDiaMes * diasTrab;
+  const desvioPctMes     = forecastAteD1>0 ? ((fechados - forecastAteD1)/forecastAteD1)*100 : 0;
+  const desvioAbsMes     = fechados - forecastAteD1;
+  const desvioOkMes      = Math.abs(desvioPctMes) <= 2;
 
   _mData={ano,mi,meta,fechados,hc61,hc52,diasUteis,diasTrab,diasRest,mediaDia,projecao,necDia,
     capEquipeDia,capEquipeMes,metaRealMes,totalHC,metaOpDia61,metaOpDia52,
@@ -755,10 +815,47 @@ function calcProdMes(){
   document.getElementById('mes-detail').innerHTML=`
     <div class="info-row"><span class="key">Dias úteis no mês</span><span class="val">${diasUteis} dias</span></div>
     <div class="info-row"><span class="key">Feriados nacionais</span><span class="val">${feriadosUteis.length} ${trabalhaFeriado?'(trabalhados)':'(descontados)'}</span></div>
-    <div class="info-row"><span class="key">Dias trabalhados</span><span class="val">${diasTrab}</span></div>
+    <div class="info-row"><span class="key">Dias trabalhados até D-1</span><span class="val">${diasTrab} <span style="font-size:10px;color:var(--muted);">(base: até ${d1.getMonth()===mi?d1.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):nomeMesAno(ano,mi)})</span></span></div>
     <div class="info-row"><span class="key">Dias restantes</span><span class="val">${diasRest}</span></div>
     <div class="info-row"><span class="key">Gap projeção vs meta</span><span class="val" style="color:${gap>=0?'var(--accent)':'var(--danger)'}">${gap>=0?'+':''}${fmtInt(gap)} casos</span></div>
     <div class="info-row"><span class="key">Operadores 6×1 / 5×2</span><span class="val">${hc61} / ${hc52}</span></div>
+
+    <!-- DESVIO DE PRODUTIVIDADE D-1 -->
+    ${diasTrab>0&&forecastAteD1>0?`
+    <div style="margin-top:16px;margin-bottom:4px;padding:16px;background:${desvioPctMes<-2?'rgba(255,77,109,0.05)':desvioPctMes>2?'rgba(0,229,160,0.05)':'rgba(91,110,245,0.05)'};border:2px solid ${desvioPctMes<-2?'rgba(255,77,109,0.3)':desvioPctMes>2?'rgba(0,229,160,0.3)':'rgba(91,110,245,0.3)'};border-radius:12px;">
+      <div style="font-size:11px;font-family:'Space Mono',monospace;color:${desvioPctMes<-2?'var(--danger)':desvioPctMes>2?'var(--accent)':'var(--accent2)'};letter-spacing:2px;margin-bottom:12px;">
+        📐 DESVIO DE PRODUTIVIDADE — CASOS TRATADOS (D-1)
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:5px;">FORECAST ATÉ D-1</div>
+          <div style="font-size:26px;font-weight:800;font-family:'Space Mono',monospace;color:var(--muted)">${fmtInt(forecastAteD1)}</div>
+          <div style="font-size:10px;font-family:'Space Mono',monospace;margin-top:4px;color:var(--muted);">${fmt(forecastDiaMes,1)}/dia × ${diasTrab} dias</div>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:5px;">REALIZADO ATÉ D-1</div>
+          <div style="font-size:26px;font-weight:800;font-family:'Space Mono',monospace;color:var(--text)">${fmtInt(fechados)}</div>
+          <div style="font-size:10px;font-family:'Space Mono',monospace;margin-top:4px;color:var(--muted);">${fmt(mediaDia,1)}/dia média real</div>
+        </div>
+        <div style="background:var(--bg);border:2px solid ${desvioPctMes<-2?'rgba(255,77,109,0.4)':desvioPctMes>2?'rgba(0,229,160,0.4)':'rgba(91,110,245,0.4)'};border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:5px;">DESVIO</div>
+          <div style="font-size:26px;font-weight:800;font-family:'Space Mono',monospace;color:${desvioPctMes<-2?'var(--danger)':desvioPctMes>2?'var(--accent)':'var(--accent2)'}">${desvioPctMes>=0?'+':''}${fmt(desvioPctMes,1)}%</div>
+          <div style="font-size:10px;font-family:'Space Mono',monospace;margin-top:4px;color:${desvioPctMes<-2?'var(--danger)':desvioPctMes>2?'var(--accent)':'var(--accent2)'};">${desvioPctMes<-2?'⬇ Abaixo do forecast':desvioPctMes>2?'⬆ Acima do forecast':'➡ Em linha'}</div>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:5px;">${desvioAbsMes>=0?'CASOS A MAIS':'CASOS A MENOS'}</div>
+          <div style="font-size:26px;font-weight:800;font-family:'Space Mono',monospace;color:${desvioAbsMes<0?'var(--danger)':'var(--accent)'};">${desvioAbsMes>=0?'+':''}${fmtInt(desvioAbsMes)}</div>
+          <div style="font-size:10px;font-family:'Space Mono',monospace;margin-top:4px;color:var(--muted);">vs. forecast acumulado</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;padding:8px 12px;background:${desvioPctMes<-2?'rgba(255,77,109,0.07)':desvioPctMes>2?'rgba(0,229,160,0.07)':'rgba(91,110,245,0.07)'};border-radius:8px;font-size:11px;font-family:'Space Mono',monospace;color:${desvioPctMes<-2?'var(--danger)':desvioPctMes>2?'var(--accent)':'var(--accent2)'};">
+        ${desvioPctMes<-2
+          ?`⚠ Equipe <strong>${fmt(Math.abs(desvioPctMes),1)}% abaixo</strong> do forecast de casos tratados. Produtividade insuficiente pode comprometer a meta de fechamentos do mês.`
+          :desvioPctMes>2
+          ?`✓ Equipe <strong>${fmt(desvioPctMes,1)}% acima</strong> do forecast. Boa produtividade — maior volume tratado gera mais margem para controlar indicadores.`
+          :`➡ Produtividade <strong>em linha</strong> com o forecast (variação de ${fmt(Math.abs(desvioPctMes),1)}%).`}
+      </div>
+    </div>`:''}
 
     ${diasRest>0?`
     <div style="margin-top:16px;padding:16px;background:rgba(224,95,255,0.06);border:1px solid rgba(224,95,255,0.2);border-radius:12px;">
@@ -903,8 +1000,10 @@ function rabGetDias(ano, mi){
   const uteis   = excluir ? diasSD - ferU.length : diasSD;
   let trab, rest;
   if(ano===hoje.getFullYear()&&mi===hoje.getMonth()){
-    const sd = diasTrabalhadosAte(ano,mi,hoje.getDate());
-    const fh = excluir ? ferU.filter(d=>d<=hoje.getDate()) : [];
+    // D-1: considera até ontem (último dia com dados fechados)
+    const diaRef = d1.getMonth()===mi ? d1.getDate() : 0;
+    const sd = diaRef>0 ? diasTrabalhadosAte(ano,mi,diaRef) : 0;
+    const fh = excluir ? ferU.filter(d=>d<=diaRef) : [];
     trab = sd - fh.length; rest = uteis - trab;
   } else if(ano<hoje.getFullYear()||(ano===hoje.getFullYear()&&mi<hoje.getMonth())){
     trab=uteis; rest=0;
@@ -935,7 +1034,8 @@ function rabInit(){
     if(dow===0) continue;
     if(excluir && ferU.includes(d)) continue;
     const key = dateKey(ano,mi,d);
-    const isTrab = (ano===hoje.getFullYear()&&mi===hoje.getMonth()) ? d<=hoje.getDate() : (ano<hoje.getFullYear()||(ano===hoje.getFullYear()&&mi<hoje.getMonth()));
+    const diaRef = (ano===hoje.getFullYear()&&mi===hoje.getMonth()&&d1.getMonth()===mi) ? d1.getDate() : 0;
+    const isTrab = (ano===hoje.getFullYear()&&mi===hoje.getMonth()) ? d<=diaRef : (ano<hoje.getFullYear()||(ano===hoje.getFullYear()&&mi<hoje.getMonth()));
     _rabDiaList.push({ d, dow, key, isTrab, label: `${dowLabel(dow)} ${d}` });
   }
 
@@ -987,44 +1087,80 @@ function rabCalcMeta(){
   const val     = document.getElementById('rab-mes').value;
   const bruta   = parseFloat(document.getElementById('rab-meta-bruta').value);
   const metaPct = parseFloat(document.getElementById('rab-meta-pct').value);
+  const hc61    = parseFloat(document.getElementById('rab-hc61').value)||0;
+  const hc52    = parseFloat(document.getElementById('rab-hc52').value)||0;
   if(!val||isNaN(bruta)||isNaN(metaPct)) return;
   const [ano,mes] = val.split('-').map(Number); const mi=mes-1;
   const { uteis, trab, rest } = rabGetDias(ano,mi);
   const maxPerm   = bruta*(metaPct/100);
   const mediaTodo = uteis>0 ? maxPerm/uteis : 0;
-  _rabMeta = { bruta, metaPct, maxPerm, uteis, trab, rest, ano, mi, mediaTodo };
+  const capDia    = hc61*CAP_61 + hc52*CAP_52;
+  _rabMeta = { bruta, metaPct, maxPerm, uteis, trab, rest, ano, mi, mediaTodo, hc61, hc52, capDia };
   document.getElementById('rab-result-meta').style.display='block';
   document.getElementById('rab-show-pct').textContent   = fmt(metaPct,2)+'%';
   document.getElementById('rab-show-max').textContent   = fmtInt(maxPerm);
   document.getElementById('rab-show-media').textContent = fmt(mediaTodo,1);
+  const capCard = document.getElementById('rab-show-cap-card');
+  if(capDia>0){
+    capCard.style.display='block';
+    document.getElementById('rab-show-cap').textContent    = fmt(capDia,1);
+    document.getElementById('rab-show-cap-sub').textContent= `${hc61} 6×1 + ${hc52} 5×2`;
+  } else { capCard.style.display='none'; }
+}
+
+// ── ENTRADA RÁPIDA ──
+function rabEntradaRapida(){
+  if(!_rabMeta) return;
+  const pct   = parseFloat(document.getElementById('rab-pct-rapido').value);
+  const trat  = parseFloat(document.getElementById('rab-trat-rapido').value);
+  const prev  = document.getElementById('rab-rapido-preview');
+  if(isNaN(pct)||isNaN(trat)||trat<=0){ prev.style.display='none'; return; }
+  const volReal = trat*(pct/100);
+  const saldo   = Math.max(_rabMeta.maxPerm - volReal, 0);
+  const media   = _rabMeta.rest>0 ? saldo/_rabMeta.rest : 0;
+  prev.style.display='flex';
+  document.getElementById('rab-rap-vol').textContent   = fmtInt(volReal);
+  document.getElementById('rab-rap-saldo').textContent = fmtInt(saldo);
+  document.getElementById('rab-rap-media').textContent = fmt(media,1)+'/dia';
 }
 
 // ── PROJEÇÃO ──
-function rabCalcProjecao(){
+function rabCalcProjecao(modoRapido=false){
   if(!_rabMeta){ alert('Preencha a meta mensal primeiro.'); return; }
   const { bruta, metaPct, maxPerm, uteis, trab, rest, mediaTodo } = _rabMeta;
-  const fallbackTratDia = bruta / uteis; // tratados/dia quando não há dado real
+  const fallbackTratDia = bruta / uteis;
 
-  // Acumular dados reais
   let totalTratReal=0, totalReabReal=0, diasComDado=0;
-  _rabDiaList.filter(x=>x.isTrab).forEach(({ key }) => {
-    const d = _rabDias[key] || {};
-    if(d.tratados && d.pctReab !== undefined){
-      totalTratReal  += d.tratados;
-      totalReabReal  += d.tratados * (d.pctReab/100);
-      diasComDado++;
-    }
-  });
+  const lastByDow = {};
 
-  // Para dias futuros: para cada dow, pegar o último dado real daquele dow
-  // dow→ último {tratados, pctReab}
-  const lastByDow = {}; // dow → {tratados, pctReab}
-  _rabDiaList.forEach(({ key, dow, isTrab }) => {
-    const d = _rabDias[key] || {};
-    if(isTrab && d.tratados && d.pctReab !== undefined){
-      lastByDow[dow] = { tratados: d.tratados, pctReab: d.pctReab };
+  if(modoRapido){
+    const pctRap  = parseFloat(document.getElementById('rab-pct-rapido').value);
+    const tratRap = parseFloat(document.getElementById('rab-trat-rapido').value);
+    if(isNaN(pctRap)||isNaN(tratRap)||tratRap<=0){
+      alert('Preencha o % de reabertura atual e o total tratado na Entrada Rápida.'); return;
     }
-  });
+    totalTratReal = tratRap;
+    totalReabReal = tratRap*(pctRap/100);
+    diasComDado   = trab;
+    // lastByDow vazio → dias futuros usam fallback com metaPct
+  } else {
+    // Acumular dados reais do lançamento diário
+    _rabDiaList.filter(x=>x.isTrab).forEach(({ key }) => {
+      const d = _rabDias[key] || {};
+      if(d.tratados && d.pctReab !== undefined){
+        totalTratReal  += d.tratados;
+        totalReabReal  += d.tratados * (d.pctReab/100);
+        diasComDado++;
+      }
+    });
+    // Para dias futuros: último dado real por dia da semana
+    _rabDiaList.forEach(({ key, dow, isTrab }) => {
+      const d = _rabDias[key] || {};
+      if(isTrab && d.tratados && d.pctReab !== undefined){
+        lastByDow[dow] = { tratados: d.tratados, pctReab: d.pctReab };
+      }
+    });
+  }
 
   // Projeção: dias futuros sem dado usam o mesmo dow anterior, se não tiver usa fallback
   let projTratFut=0, projReabFut=0;
@@ -1054,6 +1190,26 @@ function rabCalcProjecao(){
   const projDentro = projPct<=metaPct;
   const estouro    = mediaAtual>mediaDiaRes+0.05 && rest>0;
   const pctUsado   = maxPerm>0?Math.min((totalReabReal/maxPerm)*100,100):0;
+
+  // Tratados/dia necessário nos dias restantes para cobrir a meta bruta
+  const necTratDia  = rest>0 ? (bruta - totalTratReal) / rest : 0;
+  const capDia      = _rabMeta.capDia || 0;
+  const capOk       = capDia<=0 || necTratDia <= capDia;
+
+  // Desvio de produtividade: forecast tratados até hoje vs realizado
+  // Forecast diário = meta bruta / dias úteis totais
+  const forecastDia     = uteis>0 ? bruta/uteis : 0;
+  const forecastAteHoje = forecastDia * trab;   // o que deveria ter sido tratado até hoje
+  const desvioPct       = forecastAteHoje>0 ? ((totalTratReal - forecastAteHoje)/forecastAteHoje)*100 : 0;
+  const desvioAbs       = totalTratReal - forecastAteHoje;
+  const desvioOk        = desvioPct >= -2; // margem de ±2% considerada em linha
+
+  // Ganho na projeção: se obedecer ao limite de reaberturas/dia nos dias restantes
+  // projeção ideal = totalReabReal + (mediaDiaRes * rest) sobre projTratTotal
+  const projTratTotal2 = totalTratReal + (rest>0 ? necTratDia*rest : 0);
+  const projReabIdeal  = totalReabReal + mediaDiaRes*rest;
+  const projPctIdeal   = projTratTotal2>0 ? (projReabIdeal/projTratTotal2)*100 : projPct;
+  const ganho          = projPct - projPctIdeal; // redução do % = ganho (positivo = melhora)
 
   const el = document.getElementById('rab-result-proj');
   el.innerHTML = `
@@ -1105,6 +1261,115 @@ function rabCalcProjecao(){
       </div>
     </div>
 
+    <!-- DESVIO DE PRODUTIVIDADE -->
+    ${trab>0&&forecastAteHoje>0?`
+    <div style="margin-bottom:16px;padding:16px;background:${desvioPct<-2?'rgba(255,77,109,0.05)':desvioPct>2?'rgba(0,229,160,0.05)':'rgba(91,110,245,0.05)'};border:2px solid ${desvioPct<-2?'rgba(255,77,109,0.3)':desvioPct>2?'rgba(0,229,160,0.3)':'rgba(91,110,245,0.3)'};border-radius:12px;">
+      <div style="font-size:11px;font-family:'Space Mono',monospace;color:${desvioPct<-2?'var(--danger)':desvioPct>2?'var(--accent)':'var(--accent2)'};letter-spacing:2px;margin-bottom:12px;">
+        📐 DESVIO DE PRODUTIVIDADE — CASOS TRATADOS
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:5px;">FORECAST ATÉ HOJE</div>
+          <div style="font-size:28px;font-weight:800;font-family:'Space Mono',monospace;color:var(--muted)">${fmtInt(forecastAteHoje)}</div>
+          <div style="font-size:10px;font-family:'Space Mono',monospace;margin-top:4px;color:var(--muted);">${fmt(forecastDia,1)}/dia × ${trab} dias</div>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:5px;">REALIZADO ATÉ HOJE</div>
+          <div style="font-size:28px;font-weight:800;font-family:'Space Mono',monospace;color:var(--text)">${fmtInt(totalTratReal)}</div>
+          <div style="font-size:10px;font-family:'Space Mono',monospace;margin-top:4px;color:var(--muted);">${fmt(diasComDado>0?totalTratReal/diasComDado:0,1)}/dia média real</div>
+        </div>
+        <div style="background:var(--bg);border:2px solid ${desvioPct<-2?'rgba(255,77,109,0.4)':desvioPct>2?'rgba(0,229,160,0.4)':'rgba(91,110,245,0.4)'};border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:5px;">DESVIO</div>
+          <div style="font-size:28px;font-weight:800;font-family:'Space Mono',monospace;color:${desvioPct<-2?'var(--danger)':desvioPct>2?'var(--accent)':'var(--accent2)'}">${desvioPct>=0?'+':''}${fmt(desvioPct,1)}%</div>
+          <div style="font-size:10px;font-family:'Space Mono',monospace;margin-top:4px;color:${desvioPct<-2?'var(--danger)':desvioPct>2?'var(--accent)':'var(--accent2)'};">
+            ${desvioPct<-2?'⬇ Abaixo do forecast':desvioPct>2?'⬆ Acima do forecast':'➡ Em linha com o forecast'}
+          </div>
+        </div>
+        ${Math.abs(desvioAbs)>0.5?`
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:5px;">${desvioAbs>=0?'CASOS A MAIS':'CASOS A MENOS'}</div>
+          <div style="font-size:28px;font-weight:800;font-family:'Space Mono',monospace;color:${desvioAbs<0?'var(--danger)':'var(--accent)'};">${desvioAbs>=0?'+':''}${fmtInt(desvioAbs)}</div>
+          <div style="font-size:10px;font-family:'Space Mono',monospace;margin-top:4px;color:var(--muted);">vs. forecast acumulado</div>
+        </div>`:''}
+      </div>
+      ${desvioPct<-2?`
+      <div style="margin-top:10px;padding:8px 12px;background:rgba(255,77,109,0.07);border-radius:8px;font-size:11px;font-family:'Space Mono',monospace;color:var(--danger);">
+        ⚠ A equipe está <strong>${fmt(Math.abs(desvioPct),1)}% abaixo</strong> do forecast de casos tratados. Isso impacta diretamente na projeção de reabertura — quanto menos casos tratados, mais difícil controlar o percentual.
+      </div>`
+      :desvioPct>2?`
+      <div style="margin-top:10px;padding:8px 12px;background:rgba(0,229,160,0.07);border-radius:8px;font-size:11px;font-family:'Space Mono',monospace;color:var(--accent);">
+        ✓ A equipe está <strong>${fmt(desvioPct,1)}% acima</strong> do forecast de casos tratados. Boa produtividade — mantendo o ritmo, há mais margem para controlar o percentual de reabertura.
+      </div>`:`
+      <div style="margin-top:10px;padding:8px 12px;background:rgba(91,110,245,0.07);border-radius:8px;font-size:11px;font-family:'Space Mono',monospace;color:var(--accent2);">
+        ➡ Produtividade em linha com o forecast (variação de ${fmt(Math.abs(desvioPct),1)}%).
+      </div>`}
+    </div>`:''}
+
+    <!-- TRATADOS/DIA + CAPACIDADE -->
+    ${rest>0?`
+    <div style="margin-bottom:16px;padding:16px;background:rgba(91,110,245,0.05);border:2px solid rgba(91,110,245,0.2);border-radius:12px;">
+      <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--accent2);letter-spacing:2px;margin-bottom:12px;">📋 TRATADOS/DIA NECESSÁRIO NOS ${rest} DIAS RESTANTES</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;">
+        <div style="background:var(--bg);border:2px solid ${capOk?'rgba(91,110,245,0.3)':'rgba(255,77,109,0.4)'};border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:6px;">NECESSÁRIO/DIA</div>
+          <div style="font-size:36px;font-weight:800;font-family:'Space Mono',monospace;color:${capOk?'var(--accent2)':'var(--danger)'};line-height:1">${fmt(necTratDia,1)}</div>
+          <div style="font-size:10px;font-family:'Space Mono',monospace;margin-top:5px;color:var(--muted);">(meta bruta − tratados) ÷ dias</div>
+        </div>
+        ${capDia>0?`
+        <div style="background:var(--bg);border:2px solid ${capOk?'rgba(0,229,160,0.3)':'rgba(255,77,109,0.4)'};border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:6px;">CAP. CASOS TRATADOS/DIA</div>
+          <div style="font-size:36px;font-weight:800;font-family:'Space Mono',monospace;color:${capOk?'var(--accent)':'var(--danger)'};line-height:1">${fmt(capDia,1)}</div>
+          <div style="font-size:10px;font-family:'Space Mono',monospace;margin-top:5px;color:var(--muted);">máx. que a equipe consegue tratar/dia<br>${_rabMeta.hc61} 6×1 + ${_rabMeta.hc52} 5×2</div>
+        </div>`:''}
+        ${!capOk&&capDia>0?`
+        <div style="background:rgba(255,77,109,0.06);border:2px solid rgba(255,77,109,0.3);border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--danger);margin-bottom:6px;">ACIMA DA CAPACIDADE</div>
+          <div style="font-size:36px;font-weight:800;font-family:'Space Mono',monospace;color:var(--danger);line-height:1">+${fmt(necTratDia-capDia,1)}</div>
+          <div style="font-size:10px;font-family:'Space Mono',monospace;margin-top:5px;color:var(--muted);">casos/dia além da cap. de tratamento</div>
+        </div>`:''}
+      </div>
+      ${!capOk&&capDia>0?`
+      <div style="margin-top:12px;padding:12px 14px;background:rgba(255,77,109,0.07);border:1px solid rgba(255,77,109,0.2);border-radius:8px;">
+        <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--danger);letter-spacing:1px;margin-bottom:8px;">⚠ CAPACIDADE INSUFICIENTE — O que cada grupo precisa produzir a mais:</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">
+          ${_rabMeta.hc61>0?`<div style="background:var(--bg);border:1px solid rgba(255,77,109,0.2);border-radius:8px;padding:10px;text-align:center;">
+            <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:4px;">6×1 — ${_rabMeta.hc61} op</div>
+            <div style="font-size:22px;font-weight:800;font-family:'Space Mono',monospace;color:var(--danger)">+${fmt((necTratDia-capDia)*(_rabMeta.hc61*CAP_61/capDia)/_rabMeta.hc61,2)}</div>
+            <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-top:3px;">casos/op além de ${CAP_61}</div>
+          </div>`:''}
+          ${_rabMeta.hc52>0?`<div style="background:var(--bg);border:1px solid rgba(255,77,109,0.2);border-radius:8px;padding:10px;text-align:center;">
+            <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:4px;">5×2 — ${_rabMeta.hc52} op</div>
+            <div style="font-size:22px;font-weight:800;font-family:'Space Mono',monospace;color:var(--danger)">+${fmt((necTratDia-capDia)*(_rabMeta.hc52*CAP_52/capDia)/_rabMeta.hc52,2)}</div>
+            <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-top:3px;">casos/op além de ${CAP_52}</div>
+          </div>`:''}
+        </div>
+      </div>`:''}
+    </div>`:''}
+
+    <!-- GANHO SE OBEDECER A PROJEÇÃO -->
+    ${rest>0&&ganho>0.01?`
+    <div style="margin-bottom:16px;padding:16px;background:rgba(0,229,160,0.06);border:2px solid rgba(0,229,160,0.25);border-radius:12px;">
+      <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--accent);letter-spacing:2px;margin-bottom:12px;">🎯 GANHO SE OBEDECER A PROJEÇÃO</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;">
+        <div style="background:var(--bg);border:1px solid rgba(0,229,160,0.3);border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:5px;">% ATUAL (PROJETADO)</div>
+          <div style="font-size:30px;font-weight:800;font-family:'Space Mono',monospace;color:var(--danger)">${fmt(projPct,2)}%</div>
+        </div>
+        <div style="background:var(--bg);border:1px solid rgba(0,229,160,0.3);border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:5px;">% COM A PROJEÇÃO</div>
+          <div style="font-size:30px;font-weight:800;font-family:'Space Mono',monospace;color:var(--accent)">${fmt(projPctIdeal,2)}%</div>
+        </div>
+        <div style="background:rgba(0,229,160,0.08);border:2px solid rgba(0,229,160,0.3);border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--accent);margin-bottom:5px;">GANHO</div>
+          <div style="font-size:30px;font-weight:800;font-family:'Space Mono',monospace;color:var(--accent)">−${fmt(ganho,2)}pp</div>
+          <div style="font-size:10px;font-family:'Space Mono',monospace;margin-top:5px;color:var(--muted);">pontos percentuais de melhora</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;font-size:11px;font-family:'Space Mono',monospace;color:var(--accent);padding:8px 12px;background:rgba(0,229,160,0.06);border-radius:8px;">
+        ✓ Limitando a <strong>${fmt(mediaDiaRes,1)} reabert./dia</strong> e tratando <strong>${fmt(necTratDia,1)} casos/dia</strong>, o % fecha em <strong>${fmt(projPctIdeal,2)}%</strong> — ${projPctIdeal<=metaPct?'dentro da meta!':'o mais próximo possível da meta.'}
+      </div>
+    </div>`:''}
+
     <!-- TENDÊNCIA -->
     <div style="font-size:10px;font-family:'Space Mono',monospace;letter-spacing:2px;color:var(--muted);margin-bottom:12px;">📡 TENDÊNCIA — PROJEÇÃO POR DIA DA SEMANA</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px;">
@@ -1129,7 +1394,7 @@ function rabCalcProjecao(){
     <div style="padding:16px;background:rgba(255,77,109,0.08);border:2px solid rgba(255,77,109,0.3);border-radius:12px;text-align:center;margin-bottom:14px;">
       <div style="font-size:18px;margin-bottom:6px;">🚨</div>
       <div style="font-size:13px;font-weight:800;font-family:'Space Mono',monospace;color:var(--danger);">RISCO DE ESTOURO DA META</div>
-      <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);margin-top:8px;">Média atual <strong style="color:var(--danger)">${fmt(mediaAtual,1)}/dia</strong> está acima da permitida <strong style="color:var(--accent3)">${fmt(mediaDiaRes,1)}/dia</strong>.<br>Precisa reduzir <strong style="color:var(--danger)">${fmt(mediaAtual-mediaDiaRes,1)} reabert./dia</strong> para voltar ao target.</div>
+      <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);margin-top:8px;">Média atual <strong style="color:var(--danger)">${fmt(mediaAtual,1)}/dia</strong> acima da permitida <strong style="color:var(--accent3)">${fmt(mediaDiaRes,1)}/dia</strong>.<br>Precisa reduzir <strong style="color:var(--danger)">${fmt(mediaAtual-mediaDiaRes,1)} reabert./dia</strong> para voltar ao target.</div>
     </div>`:`
     <div style="padding:12px 16px;background:rgba(0,229,160,0.06);border:1px solid rgba(0,229,160,0.2);border-radius:10px;margin-bottom:14px;font-family:'Space Mono',monospace;font-size:11px;color:var(--accent);">
       ✓ Operação no ritmo permitido. Pode ter até <strong>${fmt(mediaDiaRes,1)} reabert./dia</strong> nos ${rest} dias restantes.
