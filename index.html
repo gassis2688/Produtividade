@@ -22,8 +22,7 @@
 
   header { margin-bottom:36px; animation:fadeDown 0.6s ease both; }
   .header-tag { font-family:'Space Mono',monospace; font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--accent3); margin-bottom:10px; display:flex; align-items:center; gap:8px; }
-  .header-tag::before { content:''; display:inline-block; width:20px; height:2px; background:var(--accent3); }
-  h1 { font-size:clamp(24px,4vw,36px); font-weight:800; line-height:1.1; letter-spacing:-1px; }
+  .header-tag::before { content:''; display:inline-block; width:20px; height:2px; background:var(--accent3); }  h1 { font-size:clamp(24px,4vw,36px); font-weight:800; line-height:1.1; letter-spacing:-1px; }
   h1 span { color:var(--accent3); }
   .subtitle { color:var(--muted); font-size:12px; margin-top:7px; font-family:'Space Mono',monospace; }
 
@@ -34,6 +33,7 @@
   .tab.active { background:var(--card); border:1px solid var(--border); }
   .tab.active.t1 { color:var(--accent3); }
   .tab.active.t2 { color:var(--accent4); }
+  .tab.active.t3 { color:var(--accent); }
   .panel { display:none; animation:fadeUp 0.35s ease both; }
   .panel.active { display:block; }
 
@@ -87,7 +87,7 @@
   .info-row .val{font-weight:600;font-family:'Space Mono',monospace;font-size:13px;}
 
   /* PROJ GRID */
-  .proj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-top:14px;}
+  .proj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-top:14px;}
   .proj-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center;}
   .proj-card.proj-today{border-color:var(--accent4);background:rgba(224,95,255,0.06);}
   .proj-card.proj-past{opacity:0.6;}
@@ -131,13 +131,14 @@
 
 <header>
   <div class="header-tag">Gestão de Equipe</div>
-  <h1>Calculadora de<br><span>Produtividade</span></h1>
-  <p class="subtitle">// escala 6×1 · escala 5×2 · ineficiências · metas por operador</p>
+  <h1>Calculadora de<br><span>Performance</span></h1>
+  <p class="subtitle">// produtividade · reaberturas · metas por operador</p>
 </header>
 
 <div class="tabs">
   <button class="tab t1 active" onclick="switchTab(0)">⚡ Produtividade Dia</button>
   <button class="tab t2" onclick="switchTab(1)">📊 Produtividade Mês</button>
+  <button class="tab t3" onclick="switchTab(2)">📂 Reaberturas</button>
 </div>
 
 <!-- ══════════ PANEL 1 — DIA ══════════ -->
@@ -228,9 +229,22 @@
       <div class="field"><label>Meta do Mês</label><input type="number" id="m-meta" placeholder="Ex: 3000" min="0" class="purple"></div>
       <div class="field"><label>Casos Fechados até hoje</label><input type="number" id="m-fechados" placeholder="Ex: 1200" min="0" class="purple"></div>
     </div>
+
+    <!-- Flag feriados -->
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;padding:12px 16px;background:rgba(224,95,255,0.06);border:1px solid rgba(224,95,255,0.2);border-radius:10px;">
+      <span style="font-size:11px;font-family:'Space Mono',monospace;color:var(--accent4);">🗓 Trabalha nos feriados nacionais?</span>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:'Space Mono',monospace;font-size:11px;color:var(--text);">
+        <input type="radio" name="feriados" id="m-feriado-sim" value="sim" checked onchange="updateMesInfo()" style="accent-color:var(--accent4);"> Sim
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:'Space Mono',monospace;font-size:11px;color:var(--text);">
+        <input type="radio" name="feriados" id="m-feriado-nao" value="nao" onchange="updateMesInfo()" style="accent-color:var(--accent4);"> Não
+      </label>
+    </div>
+
     <div class="info-auto purple" id="m-auto-info">
       <span>📅 <span id="m-auto-mes">—</span></span>
-      <span>Dias úteis totais: <strong id="m-auto-uteis">—</strong></span>
+      <span>Dias úteis (seg–sáb): <strong id="m-auto-uteis">—</strong></span>
+      <span>Feriados no mês: <strong id="m-auto-feriados">—</strong></span>
       <span>Dias trabalhados: <strong id="m-auto-trabalhados">—</strong></span>
       <span>Dias restantes: <strong id="m-auto-restantes">—</strong></span>
     </div>
@@ -267,6 +281,88 @@
   </div>
 </div>
 
+<!-- ══════════ PANEL 3 — REABERTURAS ══════════ -->
+<div class="panel" id="panel-2">
+
+  <!-- BLOCO 1: CONFIGURAÇÃO DA META -->
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--accent)"></span>Configuração da Meta Mensal</div>
+    <div class="form-grid">
+      <div class="field">
+        <label>Mês de Referência</label>
+        <input type="month" id="rab-mes" style="cursor:pointer" onchange="rabInit()">
+      </div>
+      <div class="field">
+        <label>Meta Bruta do Mês</label>
+        <input type="number" id="rab-meta-bruta" placeholder="Ex: 12000" min="0" oninput="rabCalcMeta()">
+        <small>Total esperado de casos tratados</small>
+      </div>
+      <div class="field">
+        <label>Meta % Reabertura</label>
+        <input type="number" id="rab-meta-pct" placeholder="Ex: 3.00" min="0" max="100" step="0.01" oninput="rabCalcMeta()">
+        <small>Limite máximo permitido</small>
+      </div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:16px;">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(0,229,160,0.05);border:1px solid rgba(0,229,160,0.2);border-radius:10px;">
+        <span style="font-size:11px;font-family:'Space Mono',monospace;color:var(--accent);">Excluir feriados nacionais?</span>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-family:'Space Mono',monospace;font-size:11px;color:var(--text);">
+          <input type="radio" name="rab-feriado" id="rab-feriado-sim" value="sim" onchange="rabInit()" style="accent-color:var(--accent);"> Sim
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-family:'Space Mono',monospace;font-size:11px;color:var(--text);">
+          <input type="radio" name="rab-feriado" id="rab-feriado-nao" value="nao" checked onchange="rabInit()" style="accent-color:var(--accent);"> Não
+        </label>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 16px;background:rgba(0,229,160,0.05);border:1px solid rgba(0,229,160,0.2);border-radius:10px;">
+        <span style="font-size:11px;font-family:'Space Mono',monospace;color:var(--accent);">Trabalha sábado?</span>
+        <span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent);font-weight:700;">✓ Sim (padrão)</span>
+      </div>
+    </div>
+    <div class="info-auto show" id="rab-cal-info" style="background:rgba(0,229,160,0.05);border:1px solid rgba(0,229,160,0.2);color:var(--accent);">
+      <span>📅 <strong id="rab-cal-mes">—</strong></span>
+      <span>Dias úteis: <strong id="rab-cal-uteis">—</strong></span>
+      <span>Feriados: <strong id="rab-cal-feriados">—</strong></span>
+      <span>Trabalhados: <strong id="rab-cal-trab">—</strong></span>
+      <span>Restantes: <strong id="rab-cal-rest">—</strong></span>
+    </div>
+    <div class="result-box" id="rab-result-meta" style="display:none;margin-top:16px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;">
+        <div class="kpi-card" style="border-color:rgba(0,229,160,0.3);background:rgba(0,229,160,0.04);">
+          <div class="kpi-label" style="color:var(--accent)">🎯 Meta % Reabertura</div>
+          <div class="kpi-val" style="color:var(--accent)" id="rab-show-pct">—</div>
+          <div class="kpi-sub">limite máximo</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">📦 Máximo Permitido no Mês</div>
+          <div class="kpi-val" style="color:var(--accent2)" id="rab-show-max">—</div>
+          <div class="kpi-sub">reaberturas totais</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">📋 Média Máx./Dia (mês todo)</div>
+          <div class="kpi-val" style="color:var(--accent2)" id="rab-show-media">—</div>
+          <div class="kpi-sub">ao longo do mês</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BLOCO 2: LANÇAMENTO DIA A DIA -->
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--accent2)"></span>Lançamento Diário</div>
+    <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:14px;">Preencha os dias já trabalhados. Dias sem dados usarão o mesmo dia da semana anterior como referência.</div>
+    <div id="rab-tabela-dias" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;max-height:420px;overflow-y:auto;padding-right:4px;"></div>
+  </div>
+
+  <!-- BLOCO 3: ACOMPANHAMENTO + TENDÊNCIA -->
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--accent3)"></span>Acompanhamento e Projeção</div>
+    <button class="btn btn-green" onclick="rabCalcProjecao()" style="background:var(--accent);color:#000;margin-bottom:16px;">Calcular Projeção</button>
+    <div id="rab-result-proj"></div>
+  </div>
+
+</div>
+</div>
+
 </div>
 <div class="toast" id="toast"></div>
 
@@ -286,6 +382,63 @@ function switchTab(i){
   document.querySelectorAll('.panel').forEach((p,idx)=>p.classList.toggle('active',idx===i));
 }
 
+// ══════════════════════════════════════
+// FERIADOS NACIONAIS FIXOS (Brasil)
+// Formato: [mes(0-based), dia]
+// ══════════════════════════════════════
+const FERIADOS_FIXOS = [
+  [0,1],   // Ano Novo
+  [1,12],  // Carnaval (fixo aprox - terça)
+  [1,13],  // Carnaval (quarta-feira de cinzas)
+  [3,21],  // Tiradentes
+  [4,1],   // Dia do Trabalho
+  [8,7],   // Independência
+  [9,12],  // Nossa Senhora Aparecida
+  [10,2],  // Finados
+  [10,15], // Proclamação da República
+  [11,25], // Natal
+];
+
+// Páscoa (algoritmo de Meeus/Jones/Butcher)
+function calcPascoa(ano) {
+  const a=ano%19, b=Math.floor(ano/100), c=ano%100;
+  const d=Math.floor(b/4), e=b%4, f=Math.floor((b+8)/25);
+  const g=Math.floor((b-f+1)/3), h=(19*a+b-d-g+15)%30;
+  const i=Math.floor(c/4), k=c%4, l=(32+2*e+2*i-h-k)%7;
+  const m=Math.floor((a+11*h+22*l)/451);
+  const mes=Math.floor((h+l-7*m+114)/31)-1;
+  const dia=((h+l-7*m+114)%31)+1;
+  return {mes, dia};
+}
+
+function getFeriadosDoMes(ano, mesIdx) {
+  const lista = [];
+  // Fixos
+  FERIADOS_FIXOS.forEach(([m,d]) => {
+    if(m === mesIdx) lista.push(d);
+  });
+  // Páscoa e derivados
+  const pascoa = calcPascoa(ano);
+  const dtPascoa = new Date(ano, pascoa.mes, pascoa.dia);
+  // Sexta-feira Santa (2 dias antes)
+  const sextaSanta = new Date(dtPascoa); sextaSanta.setDate(sextaSanta.getDate()-2);
+  // Corpus Christi (60 dias depois)
+  const corpus = new Date(dtPascoa); corpus.setDate(corpus.getDate()+60);
+  [sextaSanta, corpus].forEach(dt => {
+    if(dt.getMonth()===mesIdx) lista.push(dt.getDate());
+  });
+  return lista;
+}
+
+function feriadosUteisNoMes(ano, mesIdx) {
+  // Feriados que caem em dias úteis (seg-sáb) no mês
+  const feriados = getFeriadosDoMes(ano, mesIdx);
+  return feriados.filter(d => {
+    const dow = new Date(ano, mesIdx, d).getDay();
+    return dow !== 0; // apenas seg-sáb
+  });
+}
+
 // init mês
 const mMes = document.getElementById('m-mes');
 mMes.value = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
@@ -295,13 +448,28 @@ updateMesInfo();
 function updateMesInfo(){
   const val=mMes.value; if(!val)return;
   const [ano,mes]=val.split('-').map(Number); const mi=mes-1;
-  const uteis=diasUteisNoMes(ano,mi);
-  let trab,rest;
-  if(ano===hoje.getFullYear()&&mi===hoje.getMonth()){trab=diasTrabalhadosAte(ano,mi,hoje.getDate());rest=uteis-trab;}
-  else if(ano<hoje.getFullYear()||(ano===hoje.getFullYear()&&mi<hoje.getMonth())){trab=uteis;rest=0;}
-  else{trab=0;rest=uteis;}
+  const trabalhaFeriado = document.getElementById('m-feriado-sim').checked;
+
+  const diasSemDom = diasUteisNoMes(ano,mi); // seg-sáb sem domingo
+  const feriadosUteis = feriadosUteisNoMes(ano,mi);
+  const uteis = trabalhaFeriado ? diasSemDom : diasSemDom - feriadosUteis.length;
+
+  let trab, rest;
+  if(ano===hoje.getFullYear()&&mi===hoje.getMonth()){
+    const trabSemDom = diasTrabalhadosAte(ano,mi,hoje.getDate());
+    // Feriados até hoje
+    const feriadosAteHoje = feriadosUteis.filter(d => d <= hoje.getDate());
+    trab = trabalhaFeriado ? trabSemDom : trabSemDom - feriadosAteHoje.length;
+    rest = uteis - trab;
+  } else if(ano<hoje.getFullYear()||(ano===hoje.getFullYear()&&mi<hoje.getMonth())){
+    trab=uteis; rest=0;
+  } else {
+    trab=0; rest=uteis;
+  }
+
   document.getElementById('m-auto-mes').textContent=nomeMesAno(ano,mi);
   document.getElementById('m-auto-uteis').textContent=uteis;
+  document.getElementById('m-auto-feriados').textContent=trabalhaFeriado?`${feriadosUteis.length} (não descontados)`:`${feriadosUteis.length} (descontados)`;
   document.getElementById('m-auto-trabalhados').textContent=trab;
   document.getElementById('m-auto-restantes').textContent=rest;
   document.getElementById('m-auto-info').classList.add('show');
@@ -507,11 +675,21 @@ function calcProdMes(){
   if(hc61+hc52<=0){alert('Informe ao menos um operador.');return;}
 
   const [ano,mes]=val.split('-').map(Number); const mi=mes-1;
-  const diasUteis=diasUteisNoMes(ano,mi);
+  const trabalhaFeriado = document.getElementById('m-feriado-sim').checked;
+
+  const diasSemDom = diasUteisNoMes(ano,mi);
+  const feriadosUteis = feriadosUteisNoMes(ano,mi);
+  const diasUteis = trabalhaFeriado ? diasSemDom : diasSemDom - feriadosUteis.length;
+
   let diasTrab;
-  if(ano===hoje.getFullYear()&&mi===hoje.getMonth()) diasTrab=diasTrabalhadosAte(ano,mi,hoje.getDate());
-  else if(ano<hoje.getFullYear()||(ano===hoje.getFullYear()&&mi<hoje.getMonth())) diasTrab=diasUteis;
-  else diasTrab=0;
+  if(ano===hoje.getFullYear()&&mi===hoje.getMonth()){
+    const trabSemDom = diasTrabalhadosAte(ano,mi,hoje.getDate());
+    const feriadosAteHoje = feriadosUteis.filter(d=>d<=hoje.getDate());
+    diasTrab = trabalhaFeriado ? trabSemDom : trabSemDom - feriadosAteHoje.length;
+  } else if(ano<hoje.getFullYear()||(ano===hoje.getFullYear()&&mi<hoje.getMonth())){
+    diasTrab=diasUteis;
+  } else { diasTrab=0; }
+
   if(diasTrab<=0){alert('Nenhum dia útil trabalhado neste mês ainda.');return;}
 
   const diasRest=diasUteis-diasTrab;
@@ -521,9 +699,8 @@ function calcProdMes(){
   const capEquipeDia=hc61*CAP_61+hc52*CAP_52;
   const capEquipeMes=capEquipeDia*diasUteis;
   const totalHC=hc61+hc52;
-  const mediaPerOp=diasTrab>0?(fechados/diasTrab)/totalHC:0;
+  const metaRealMes=capEquipeDia*diasUteis;
 
-  // Meta por operador por escala para os dias restantes
   const capRef=capEquipeDia||1;
   const necDia61=necDia*(hc61*CAP_61/capRef);
   const necDia52=necDia*(hc52*CAP_52/capRef);
@@ -531,7 +708,8 @@ function calcProdMes(){
   const metaOpDia52=hc52>0?necDia52/hc52:null;
 
   _mData={ano,mi,meta,fechados,hc61,hc52,diasUteis,diasTrab,diasRest,mediaDia,projecao,necDia,
-    capEquipeDia,capEquipeMes,totalHC,mediaPerOp,metaOpDia61,metaOpDia52,
+    capEquipeDia,capEquipeMes,metaRealMes,totalHC,metaOpDia61,metaOpDia52,
+    trabalhaFeriado,feriadosQtd:feriadosUteis.length,
     nomeMes:nomeMesAno(ano,mi),data:hoje.toLocaleDateString('pt-BR')};
 
   document.getElementById('result-mes').classList.add('show');
@@ -539,27 +717,53 @@ function calcProdMes(){
   const gap=projecao-meta;
   const pctMeta=(fechados/meta)*100;
   const atingeProj=projecao>=meta;
+  const capCobremeta=capEquipeDia>=necDia;
 
   document.getElementById('mes-kpis').innerHTML=`
-    <div class="kpi-card"><div class="kpi-label">Fechados</div><div class="kpi-val" style="color:var(--accent4)">${fmtInt(fechados)}</div><div class="kpi-sub">${fmt(pctMeta,1)}% da meta</div></div>
-    <div class="kpi-card"><div class="kpi-label">Projeção Mês</div><div class="kpi-val" style="color:${atingeProj?'var(--accent)':'var(--danger)'}">${fmtInt(projecao)}</div><div class="kpi-sub">${atingeProj?'✓ Bate':'✗ Abaixo'} a meta</div></div>
-    <div class="kpi-card"><div class="kpi-label">Média Atual/Dia</div><div class="kpi-val" style="color:var(--accent2)">${fmt(mediaDia,1)}</div><div class="kpi-sub">casos/dia</div></div>
-    <div class="kpi-card"><div class="kpi-label">Necessário/Dia</div><div class="kpi-val" style="color:${necDia<=capEquipeDia?'var(--accent)':'var(--danger)'}">${fmt(necDia,1)}</div><div class="kpi-sub">p/ fechar a meta</div></div>
-    <div class="kpi-card"><div class="kpi-label">Cap. Equipe/Dia</div><div class="kpi-val" style="color:var(--accent3)">${fmt(capEquipeDia,1)}</div><div class="kpi-sub">${totalHC} op totais</div></div>
-    <div class="kpi-card"><div class="kpi-label">Média/Op/Dia</div><div class="kpi-val" style="color:var(--accent4)">${fmt(mediaPerOp,2)}</div><div class="kpi-sub">realizado</div></div>
+    <div class="kpi-card" style="border-color:rgba(0,229,160,0.3);background:rgba(0,229,160,0.04);">
+      <div class="kpi-label" style="color:var(--accent)">🎯 Meta Real do Mês</div>
+      <div class="kpi-val" style="color:var(--accent)">${fmtInt(metaRealMes)}</div>
+      <div class="kpi-sub">${totalHC} op × ${diasUteis} dias úteis</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Fechados até hoje</div>
+      <div class="kpi-val" style="color:var(--accent4)">${fmtInt(fechados)}</div>
+      <div class="kpi-sub">${fmt(pctMeta,1)}% da meta</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Projeção Mês</div>
+      <div class="kpi-val" style="color:${atingeProj?'var(--accent)':'var(--danger)'}">${fmtInt(projecao)}</div>
+      <div class="kpi-sub">${atingeProj?'✓ Bate':'✗ Abaixo'} a meta</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Média Atual/Dia</div>
+      <div class="kpi-val" style="color:var(--accent2)">${fmt(mediaDia,1)}</div>
+      <div class="kpi-sub">casos/dia</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Necessário/Dia</div>
+      <div class="kpi-val" style="color:${capCobremeta?'var(--accent)':'var(--danger)'}">${fmt(necDia,1)}</div>
+      <div class="kpi-sub">${capCobremeta?'✓ Cap. cobre':'✗ Acima da cap.'}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Cap. Equipe/Dia</div>
+      <div class="kpi-val" style="color:var(--accent3)">${fmt(capEquipeDia,1)}</div>
+      <div class="kpi-sub">${totalHC} op (6×1 + 5×2)</div>
+    </div>
   `;
 
   document.getElementById('mes-detail').innerHTML=`
-    <div class="info-row"><span class="key">Dias úteis no mês</span><span class="val">${diasUteis}</span></div>
+    <div class="info-row"><span class="key">Dias úteis no mês</span><span class="val">${diasUteis} dias</span></div>
+    <div class="info-row"><span class="key">Feriados nacionais</span><span class="val">${feriadosUteis.length} ${trabalhaFeriado?'(trabalhados)':'(descontados)'}</span></div>
     <div class="info-row"><span class="key">Dias trabalhados</span><span class="val">${diasTrab}</span></div>
     <div class="info-row"><span class="key">Dias restantes</span><span class="val">${diasRest}</span></div>
     <div class="info-row"><span class="key">Gap projeção vs meta</span><span class="val" style="color:${gap>=0?'var(--accent)':'var(--danger)'}">${gap>=0?'+':''}${fmtInt(gap)} casos</span></div>
-    <div class="info-row"><span class="key">Cap. total equipe no mês</span><span class="val">${fmtInt(capEquipeMes)} casos</span></div>
     <div class="info-row"><span class="key">Operadores 6×1 / 5×2</span><span class="val">${hc61} / ${hc52}</span></div>
 
     ${diasRest>0?`
     <div style="margin-top:16px;padding:16px;background:rgba(224,95,255,0.06);border:1px solid rgba(224,95,255,0.2);border-radius:12px;">
-      <div style="font-size:10px;font-family:'Space Mono',monospace;letter-spacing:2px;color:var(--accent4);margin-bottom:14px;">🎯 META/OP/DIA NOS PRÓXIMOS ${diasRest} DIAS PARA BATER A META</div>
+      <div style="font-size:10px;font-family:'Space Mono',monospace;letter-spacing:2px;color:var(--accent4);margin-bottom:4px;">🎯 META/OP/DIA NOS PRÓXIMOS ${diasRest} DIAS PARA BATER A META</div>
+      <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:14px;">Cada operador precisa entregar para fechar os ${fmtInt(meta)} casos</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;">
         ${hc61>0&&metaOpDia61!==null?`
         <div style="background:var(--bg);border:1px solid rgba(245,166,35,0.3);border-radius:10px;padding:16px;text-align:center;">
@@ -580,23 +784,26 @@ function calcProdMes(){
           </div>
         </div>`:''}
       </div>
-    </div>`:'<div style="margin-top:12px;font-size:11px;font-family:\'Space Mono\',monospace;color:var(--muted);text-align:center;padding:12px;">Mês encerrado — sem dias restantes.</div>'}
+    </div>`:"<div style=\"margin-top:12px;font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);text-align:center;padding:12px;\">Mês encerrado — sem dias restantes.</div>"}
   `;
 
-  // Grade dia a dia
   const grid=document.getElementById('mes-proj-grid'); grid.innerHTML='';
   let du=0;
   const totalDias=new Date(ano,mi+1,0).getDate();
   for(let d=1;d<=totalDias;d++){
-    const dow=new Date(ano,mi,d).getDay(); if(dow===0)continue;
+    const dow=new Date(ano,mi,d).getDay();
+    if(dow===0) continue;
+    if(!trabalhaFeriado && feriadosUteis.includes(d)) continue;
     du++;
     const isTrab=du<=diasTrab;
     const acum=isTrab?Math.round(mediaDia*du):Math.round(fechados+necDia*(du-diasTrab));
     const isH=(ano===hoje.getFullYear()&&mi===hoje.getMonth()&&d===hoje.getDate());
+    const isFeriado=feriadosUteis.includes(d);
     const div=document.createElement('div');
     div.className='proj-card'+(isH?' proj-today':isTrab?' proj-past':'');
     const pct=`${((acum/meta)*100).toFixed(0)}%`;
-    div.innerHTML=`<div class="proj-day">${dowLabel(dow)} ${d}${isH?' · HOJE':!isTrab?' · proj.':''}</div><div class="proj-val" style="color:${isH?'var(--accent4)':!isTrab?'var(--muted)':'var(--text)'}">${acum.toLocaleString('pt-BR')}</div><div class="proj-pct">${pct}</div>`;
+    const ferTag=trabalhaFeriado&&isFeriado?' 🗓':'';
+    div.innerHTML=`<div class="proj-day">${dowLabel(dow)} ${d}${ferTag}${isH?' · HOJE':!isTrab?' · proj.':''}</div><div class="proj-val" style="color:${isH?'var(--accent4)':!isTrab?'var(--muted)':'var(--text)'}">${acum.toLocaleString('pt-BR')}</div><div class="proj-pct">${pct}</div>`;
     grid.appendChild(div);
   }
   document.getElementById('export-mes').classList.add('show');
@@ -657,8 +864,320 @@ function copyText(tipo){
     if(d.metaOpDia61!==null)t+=`Meta/op/dia 6x1: ${d.metaOpDia61.toFixed(1)}\n`;
     if(d.metaOpDia52!==null)t+=`Meta/op/dia 5x2: ${d.metaOpDia52.toFixed(1)}\n`;
   }
+  else if(tipo==='rab'&&_rabData){
+    const d=_rabData;
+    let c='Indicador;Valor\nMês;'+d.nomeMes+'\nData;'+d.data+'\n';
+    c+=`Casos tratados (mês);${d.tratadosMes}\nMeta (%);${d.metaPct}\nVol. máximo;${Math.round(d.volMax)}\n`;
+    c+=`Tratados até hoje;${d.tratadosAtual}\n% Real;${d.pctReal}\nVol. real;${Math.round(d.volRealAtual)}\n`;
+    if(d.volAnt){c+=`Vol. mês anterior;${Math.round(d.volAnt)}\nReal + Ant. (vol);${Math.round(d.volCombinado)}\nReal + Ant. (%);${d.pctCombinado.toFixed(2).replace('.',',')}\n`;}
+    c+=`Dias úteis;${d.diasUteis}\nTrabalhados;${d.diasTrab}\nRestantes;${d.diasRest}\n`;
+    c+=`Projeção % fim do mês;${d.projPct.toFixed(2).replace('.',',')}\n`;
+    if(d.pctDesafio)c+=`% Desafio;${d.pctDesafio}\nVol. desafio;${Math.round(d.volDesafio)}\nNec/dia (desafio);${d.necVolDiaDes.toFixed(1).replace('.',',')}\n`;
+    downloadCSV(`reaberturas_${d.data.replace(/\//g,'-')}.csv`,c);
+  }
   if(t) navigator.clipboard.writeText(t).then(()=>showToast('✓ Copiado!'));
 }
+
+// ══════════════════════════════════════
+// REABERTURAS
+// ══════════════════════════════════════
+
+// State
+let _rabMeta    = null;
+let _rabDias    = {};   // { "YYYY-MM-DD": { tratados, pctReab } }
+let _rabDiaList = [];   // lista ordenada de dias úteis do mês {date, dow, label}
+
+// Init
+(function(){
+  const el = document.getElementById('rab-mes');
+  el.value = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+  rabInit();
+})();
+
+function rabExcluiFeriado(){ return document.getElementById('rab-feriado-sim').checked; }
+
+function rabGetDias(ano, mi){
+  const excluir = rabExcluiFeriado();
+  const diasSD  = diasUteisNoMes(ano, mi);
+  const ferU    = feriadosUteisNoMes(ano, mi);
+  const uteis   = excluir ? diasSD - ferU.length : diasSD;
+  let trab, rest;
+  if(ano===hoje.getFullYear()&&mi===hoje.getMonth()){
+    const sd = diasTrabalhadosAte(ano,mi,hoje.getDate());
+    const fh = excluir ? ferU.filter(d=>d<=hoje.getDate()) : [];
+    trab = sd - fh.length; rest = uteis - trab;
+  } else if(ano<hoje.getFullYear()||(ano===hoje.getFullYear()&&mi<hoje.getMonth())){
+    trab=uteis; rest=0;
+  } else { trab=0; rest=uteis; }
+  return { uteis, trab, rest, ferU };
+}
+
+function dateKey(ano, mi, d){ return `${ano}-${String(mi+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+
+function rabInit(){
+  const val = document.getElementById('rab-mes').value;
+  if(!val) return;
+  const [ano,mes] = val.split('-').map(Number); const mi = mes-1;
+  const excluir = rabExcluiFeriado();
+  const { uteis, trab, rest, ferU } = rabGetDias(ano, mi);
+
+  document.getElementById('rab-cal-mes').textContent  = nomeMesAno(ano,mi);
+  document.getElementById('rab-cal-uteis').textContent = uteis;
+  document.getElementById('rab-cal-feriados').textContent = ferU.length+(excluir?' (excluídos)':' (incluídos)');
+  document.getElementById('rab-cal-trab').textContent  = trab;
+  document.getElementById('rab-cal-rest').textContent  = rest;
+
+  // Rebuild dia list
+  _rabDiaList = [];
+  const totalDias = new Date(ano,mi+1,0).getDate();
+  for(let d=1;d<=totalDias;d++){
+    const dow = new Date(ano,mi,d).getDay();
+    if(dow===0) continue;
+    if(excluir && ferU.includes(d)) continue;
+    const key = dateKey(ano,mi,d);
+    const isTrab = (ano===hoje.getFullYear()&&mi===hoje.getMonth()) ? d<=hoje.getDate() : (ano<hoje.getFullYear()||(ano===hoje.getFullYear()&&mi<hoje.getMonth()));
+    _rabDiaList.push({ d, dow, key, isTrab, label: `${dowLabel(dow)} ${d}` });
+  }
+
+  rabRenderTabela();
+  rabCalcMeta();
+}
+
+function rabRenderTabela(){
+  const container = document.getElementById('rab-tabela-dias');
+  container.innerHTML = '';
+  _rabDiaList.forEach(({ d, dow, key, isTrab, label }) => {
+    const saved  = _rabDias[key] || {};
+    const isHoje = key === dateKey(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+    const div = document.createElement('div');
+    div.style.cssText = `background:var(--${isHoje?'surface':'bg'});border:1px solid ${isHoje?'var(--accent2)':'var(--border)'};border-radius:10px;padding:12px;`;
+    div.innerHTML = `
+      <div style="font-size:10px;font-family:'Space Mono',monospace;color:${isHoje?'var(--accent2)':'var(--muted)'};letter-spacing:1px;margin-bottom:8px;display:flex;justify-content:space-between;">
+        <span>${label}${isHoje?' · HOJE':!isTrab?' · proj.':''}</span>
+        ${saved.tratados?`<span style="color:var(--accent)">✓</span>`:''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div class="field" style="margin:0">
+          <label>Tratados</label>
+          <input type="number" min="0" placeholder="${isTrab?'Ex: 450':'—'}" value="${saved.tratados||''}"
+            style="font-size:13px;padding:8px 10px;" ${!isTrab?'disabled style="opacity:0.4"':''}
+            onchange="rabSaveDay('${key}','tratados',this.value)">
+        </div>
+        <div class="field" style="margin:0">
+          <label>% Reabertura</label>
+          <input type="number" min="0" max="100" step="0.01" placeholder="${isTrab?'Ex: 3.50':'—'}" value="${saved.pctReab||''}"
+            style="font-size:13px;padding:8px 10px;" ${!isTrab?'disabled style="opacity:0.4"':''}
+            onchange="rabSaveDay('${key}','pctReab',this.value)">
+        </div>
+      </div>`;
+    container.appendChild(div);
+  });
+}
+
+function rabSaveDay(key, field, val){
+  if(!_rabDias[key]) _rabDias[key] = {};
+  const v = parseFloat(val);
+  if(!isNaN(v) && v >= 0) _rabDias[key][field] = v;
+  else delete _rabDias[key][field];
+  // Update checkmark
+  rabRenderTabela();
+}
+
+function rabCalcMeta(){
+  const val     = document.getElementById('rab-mes').value;
+  const bruta   = parseFloat(document.getElementById('rab-meta-bruta').value);
+  const metaPct = parseFloat(document.getElementById('rab-meta-pct').value);
+  if(!val||isNaN(bruta)||isNaN(metaPct)) return;
+  const [ano,mes] = val.split('-').map(Number); const mi=mes-1;
+  const { uteis, trab, rest } = rabGetDias(ano,mi);
+  const maxPerm   = bruta*(metaPct/100);
+  const mediaTodo = uteis>0 ? maxPerm/uteis : 0;
+  _rabMeta = { bruta, metaPct, maxPerm, uteis, trab, rest, ano, mi, mediaTodo };
+  document.getElementById('rab-result-meta').style.display='block';
+  document.getElementById('rab-show-pct').textContent   = fmt(metaPct,2)+'%';
+  document.getElementById('rab-show-max').textContent   = fmtInt(maxPerm);
+  document.getElementById('rab-show-media').textContent = fmt(mediaTodo,1);
+}
+
+// ── PROJEÇÃO ──
+function rabCalcProjecao(){
+  if(!_rabMeta){ alert('Preencha a meta mensal primeiro.'); return; }
+  const { bruta, metaPct, maxPerm, uteis, trab, rest, mediaTodo } = _rabMeta;
+  const fallbackTratDia = bruta / uteis; // tratados/dia quando não há dado real
+
+  // Acumular dados reais
+  let totalTratReal=0, totalReabReal=0, diasComDado=0;
+  _rabDiaList.filter(x=>x.isTrab).forEach(({ key }) => {
+    const d = _rabDias[key] || {};
+    if(d.tratados && d.pctReab !== undefined){
+      totalTratReal  += d.tratados;
+      totalReabReal  += d.tratados * (d.pctReab/100);
+      diasComDado++;
+    }
+  });
+
+  // Para dias futuros: para cada dow, pegar o último dado real daquele dow
+  // dow→ último {tratados, pctReab}
+  const lastByDow = {}; // dow → {tratados, pctReab}
+  _rabDiaList.forEach(({ key, dow, isTrab }) => {
+    const d = _rabDias[key] || {};
+    if(isTrab && d.tratados && d.pctReab !== undefined){
+      lastByDow[dow] = { tratados: d.tratados, pctReab: d.pctReab };
+    }
+  });
+
+  // Projeção: dias futuros sem dado usam o mesmo dow anterior, se não tiver usa fallback
+  let projTratFut=0, projReabFut=0;
+  _rabDiaList.filter(x=>!x.isTrab).forEach(({ dow }) => {
+    const ref = lastByDow[dow];
+    const tratDia = ref ? ref.tratados : fallbackTratDia;
+    const pctDia  = ref ? ref.pctReab  : metaPct;
+    projTratFut += tratDia;
+    projReabFut += tratDia * (pctDia/100);
+  });
+
+  const projTratTotal = totalTratReal + projTratFut;
+  const projReabTotal = totalReabReal + projReabFut;
+  const projPct       = projTratTotal>0 ? (projReabTotal/projTratTotal)*100 : 0;
+
+  // Status atual
+  const pctAtual   = totalTratReal>0 ? (totalReabReal/totalTratReal)*100 : 0;
+  const saldo      = Math.max(maxPerm - totalReabReal, 0);
+  const mediaDiaRes= rest>0 ? saldo/rest : 0;
+  const mediaAtual = diasComDado>0 ? totalReabReal/diasComDado : 0;
+  const ratio      = metaPct>0 ? pctAtual/metaPct : 0;
+  const isVerde    = ratio<0.9;
+  const isAmar     = ratio>=0.9&&ratio<=1.0;
+  const isVerm     = ratio>1.0;
+  const statusCor  = isVerde?'var(--accent)':isAmar?'var(--accent3)':'var(--danger)';
+  const statusLabel= isVerde?'🟢 Operação Confortável':isAmar?'🟡 Atenção':'🔴 Acima do Permitido';
+  const projDentro = projPct<=metaPct;
+  const estouro    = mediaAtual>mediaDiaRes+0.05 && rest>0;
+  const pctUsado   = maxPerm>0?Math.min((totalReabReal/maxPerm)*100,100):0;
+
+  const el = document.getElementById('rab-result-proj');
+  el.innerHTML = `
+    <!-- KPIs -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
+      <div class="kpi-card" style="border-color:${isVerm?'rgba(255,77,109,0.3)':isAmar?'rgba(245,166,35,0.3)':'rgba(0,229,160,0.3)'};background:${isVerm?'rgba(255,77,109,0.04)':isAmar?'rgba(245,166,35,0.04)':'rgba(0,229,160,0.04)'};">
+        <div class="kpi-label" style="color:${statusCor}">📊 % Atual</div>
+        <div class="kpi-val" style="color:${statusCor}">${fmt(pctAtual,2)}%</div>
+        <div class="kpi-sub">meta: ${fmt(metaPct,2)}%</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">📦 Reaberturas Realizadas</div>
+        <div class="kpi-val" style="color:var(--accent2)">${fmtInt(totalReabReal)}</div>
+        <div class="kpi-sub">de ${fmtInt(maxPerm)} permitidas</div>
+      </div>
+      <div class="kpi-card" style="border-color:${saldo<=0?'rgba(255,77,109,0.3)':'rgba(0,229,160,0.2)'};">
+        <div class="kpi-label">🏦 Saldo Restante</div>
+        <div class="kpi-val" style="color:${saldo<=0?'var(--danger)':'var(--accent)'}">${fmtInt(saldo)}</div>
+        <div class="kpi-sub">reaberturas disponíveis</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">📅 Dias Restantes</div>
+        <div class="kpi-val" style="color:var(--accent2)">${rest}</div>
+        <div class="kpi-sub">de ${uteis} úteis no mês</div>
+      </div>
+      <div class="kpi-card" style="border-color:${mediaDiaRes<mediaAtual?'rgba(255,77,109,0.3)':'rgba(0,229,160,0.2)'};">
+        <div class="kpi-label">⚡ Média Máx./Dia Restante</div>
+        <div class="kpi-val" style="color:${mediaDiaRes<mediaAtual?'var(--danger)':'var(--accent)'}">${fmt(mediaDiaRes,1)}</div>
+        <div class="kpi-sub">saldo ÷ dias restantes</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">📈 Média Atual/Dia</div>
+        <div class="kpi-val" style="color:${mediaAtual>mediaDiaRes?'var(--danger)':'var(--accent2)'}">${fmt(mediaAtual,1)}</div>
+        <div class="kpi-sub">reabert. ÷ dias c/ dado</div>
+      </div>
+    </div>
+
+    <!-- STATUS BAR -->
+    <div style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+        <span style="font-size:12px;font-family:'Space Mono',monospace;font-weight:700;color:${statusCor}">${statusLabel}</span>
+        <span style="font-size:11px;font-family:'Space Mono',monospace;color:var(--muted)">${fmtInt(totalReabReal)} / ${fmtInt(maxPerm)} (${fmt(pctUsado,1)}%)</span>
+      </div>
+      <div style="height:10px;background:var(--surface);border-radius:99px;overflow:hidden;">
+        <div style="height:100%;width:${pctUsado}%;background:${isVerde?'var(--accent)':isAmar?'var(--accent3)':'var(--danger)'};border-radius:99px;transition:width 0.6s;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:5px;font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);">
+        <span>0</span><span style="color:${statusCor}">${fmt(pctUsado,1)}% consumido</span><span>${fmtInt(maxPerm)}</span>
+      </div>
+    </div>
+
+    <!-- TENDÊNCIA -->
+    <div style="font-size:10px;font-family:'Space Mono',monospace;letter-spacing:2px;color:var(--muted);margin-bottom:12px;">📡 TENDÊNCIA — PROJEÇÃO POR DIA DA SEMANA</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px;">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:5px;">PROJEÇÃO FIM DO MÊS</div>
+        <div style="font-size:32px;font-weight:800;font-family:'Space Mono',monospace;color:${projDentro?'var(--accent)':'var(--danger)'}">${fmt(projPct,2)}%</div>
+        <div style="font-size:10px;margin-top:5px;font-family:'Space Mono',monospace;color:${projDentro?'var(--accent)':'var(--danger)'};">${projDentro?'✓ Dentro da meta':'⚠ Acima da meta'}</div>
+      </div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:5px;">MÉDIA ATUAL/DIA</div>
+        <div style="font-size:32px;font-weight:800;font-family:'Space Mono',monospace;color:${estouro?'var(--danger)':'var(--accent2)'}">${fmt(mediaAtual,1)}</div>
+        <div style="font-size:10px;margin-top:5px;font-family:'Space Mono',monospace;color:var(--muted);">reabert./dia</div>
+      </div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:5px;">MÉDIA PERMITIDA/DIA</div>
+        <div style="font-size:32px;font-weight:800;font-family:'Space Mono',monospace;color:${estouro?'var(--danger)':'var(--accent)'}">${fmt(mediaDiaRes,1)}</div>
+        <div style="font-size:10px;margin-top:5px;font-family:'Space Mono',monospace;color:var(--muted);">máx. p/ manter meta</div>
+      </div>
+    </div>
+
+    ${estouro?`
+    <div style="padding:16px;background:rgba(255,77,109,0.08);border:2px solid rgba(255,77,109,0.3);border-radius:12px;text-align:center;margin-bottom:14px;">
+      <div style="font-size:18px;margin-bottom:6px;">🚨</div>
+      <div style="font-size:13px;font-weight:800;font-family:'Space Mono',monospace;color:var(--danger);">RISCO DE ESTOURO DA META</div>
+      <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);margin-top:8px;">Média atual <strong style="color:var(--danger)">${fmt(mediaAtual,1)}/dia</strong> está acima da permitida <strong style="color:var(--accent3)">${fmt(mediaDiaRes,1)}/dia</strong>.<br>Precisa reduzir <strong style="color:var(--danger)">${fmt(mediaAtual-mediaDiaRes,1)} reabert./dia</strong> para voltar ao target.</div>
+    </div>`:`
+    <div style="padding:12px 16px;background:rgba(0,229,160,0.06);border:1px solid rgba(0,229,160,0.2);border-radius:10px;margin-bottom:14px;font-family:'Space Mono',monospace;font-size:11px;color:var(--accent);">
+      ✓ Operação no ritmo permitido. Pode ter até <strong>${fmt(mediaDiaRes,1)} reabert./dia</strong> nos ${rest} dias restantes.
+    </div>`}
+
+    <!-- GRADE DIA A DIA -->
+    <div style="font-size:10px;font-family:'Space Mono',monospace;letter-spacing:2px;color:var(--muted);margin-bottom:10px;">📅 DIA A DIA — REAL E PROJEÇÃO</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;">
+      ${_rabDiaList.map(({ d, dow, key, isTrab, label }) => {
+        const saved = _rabDias[key] || {};
+        const hasData = saved.tratados && saved.pctReab !== undefined;
+        const isH = key === dateKey(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+        const ref = lastByDow[dow];
+
+        let tratDia, pctDia, isProj=false;
+        if(hasData){ tratDia=saved.tratados; pctDia=saved.pctReab; }
+        else if(!isTrab){
+          isProj=true;
+          tratDia = ref ? ref.tratados : fallbackTratDia;
+          pctDia  = ref ? ref.pctReab  : metaPct;
+        } else { tratDia=null; pctDia=null; }
+
+        const reabDia = tratDia!==null ? tratDia*(pctDia/100) : null;
+        const foraMeta= pctDia!==null && pctDia>metaPct;
+        const cor = isH?'var(--accent2)':isProj?'var(--muted)':'var(--text)';
+
+        return `<div style="background:${isH?'var(--surface)':'var(--bg)'};border:1px solid ${isH?'var(--accent2)':foraMeta&&!isProj?'rgba(255,77,109,0.3)':'var(--border)'};border-radius:10px;padding:12px;">
+          <div style="font-size:10px;font-family:'Space Mono',monospace;color:${isH?'var(--accent2)':'var(--muted)'};margin-bottom:6px;">${label}${isH?' · HOJE':isProj?' · proj.':hasData?' ✓':''}</div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <div style="display:flex;justify-content:space-between;">
+              <span style="font-size:9px;font-family:'Space Mono',monospace;color:var(--muted);">Tratados</span>
+              <span style="font-size:12px;font-weight:700;font-family:'Space Mono',monospace;color:${cor}">${tratDia!==null?fmtInt(tratDia):'—'}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+              <span style="font-size:9px;font-family:'Space Mono',monospace;color:var(--muted);">Reabert.</span>
+              <span style="font-size:12px;font-weight:700;font-family:'Space Mono',monospace;color:${cor}">${reabDia!==null?fmt(reabDia,1):'—'}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding-top:3px;border-top:1px solid var(--border);">
+              <span style="font-size:9px;font-family:'Space Mono',monospace;color:var(--muted);">%</span>
+              <span style="font-size:13px;font-weight:800;font-family:'Space Mono',monospace;color:${foraMeta?'var(--danger)':isH?'var(--accent)':isProj?'var(--muted)':'var(--accent)'}">${pctDia!==null?fmt(pctDia,2)+'%':'—'}</span>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
 </script>
 </body>
 </html>
